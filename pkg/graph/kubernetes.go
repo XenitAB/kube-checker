@@ -75,6 +75,24 @@ func allowsList(verbs metav1.Verbs) bool {
 	return false
 }
 
+// filterGVRs removes GVRs that are either unwanted or technically
+// not possible to use as graph nodes.
+func filterGVRs(gvrs []schema.GroupVersionResource) []schema.GroupVersionResource {
+	skipMap := map[string]bool{
+		"v1/Event":     true,
+    "v1/ComponentStatus": true,
+	}
+  filteredGvrs := []schema.GroupVersionResource{}
+  for _, gvr := range gvrs  {
+    key := fmt.Sprintf("%s/%s", gvr.GroupVersion().String(), gvr.Resource)
+    if _, ok := skipMap[key]; ok {
+      continue
+    }
+    filteredGvrs = append(filteredGvrs, gvr)
+  }
+  return filteredGvrs
+}
+
 // fetch returns all objects of all resources in the cluster.
 func fetch(ctx context.Context, client dynamic.Interface, gvrs []schema.GroupVersionResource, namespace string) ([]unstructured.Unstructured, error) {
 	sem := semaphore.NewWeighted(int64(10))
@@ -259,6 +277,9 @@ func relationshipsForObject(object runtime.Object) []RelationshipDescription {
 	case *discoveryv1.EndpointSlice:
 		endpointSlice := object.(*discoveryv1.EndpointSlice)
 		for _, endpoint := range endpointSlice.Endpoints {
+      if endpoint.TargetRef == nil {
+        continue
+      }
 			relationships = append(relationships, RelationshipDescription{
 				Type:      EdgeTypeReference,
 				Direction: RelationshipDirectionTo,

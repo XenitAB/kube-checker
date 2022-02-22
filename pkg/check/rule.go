@@ -90,13 +90,13 @@ func getRules() map[string][]Rule {
 			},
 		},
 		"node": {
-			{
+			/*{
 				ID:          "PremiumStorage",
 				Severity:    5,
 				Description: "Node should use premium storage.",
 				Link:        "",
 				Evaluate:    nodePremiumStorage,
-			},
+			},*/
 			{
 				ID:          "BurstableInstanceType",
 				Severity:    5,
