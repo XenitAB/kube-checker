@@ -5,33 +5,42 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/xenitab/kube-checker/pkg/graph"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
-func TestApiVersionDeprecatedBasic(t *testing.T) {
+func TestDeprecatedApiVersionBasic(t *testing.T) {
 	node := &graph.Node{
-		Namespace:        "bar",
-		Name:             "baz",
-		GroupVersionKind: schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Foo"},
-		ManagedFields: []v1.ManagedFieldsEntry{
-			{
-				APIVersion: "v1beta1",
-			},
+		Unstructured: unstructured.Unstructured{
+			Object: map[string]interface{}{
+				"apiVersion": "v1",
+				"kind":       "Foo",
+				"metadata": map[string]interface{}{
+					"managedFields": []interface{}{
+						map[string]interface{}{
+							"apiVersion": "v1beta1",
+						},
+					},
+				}}},
+		Object: nil,
+		Reference: graph.ObjectReference{
+			ApiVersion: "v1",
+			Kind:       "Foo",
+			Namespace:  "bar",
+			Name:       "baz",
 		},
 	}
-	deprecations := []deprecation{
-		{
+	deprecations := map[string]Deprecation{
+		"v1beta1/Foo": {
 			ApiVersion:    "v1beta1",
 			Kind:          "Foo",
 			NewApiVersion: "v1",
 		},
 	}
-	ruleResult := apiVersionDeprecated(deprecations, node)
+	ruleResult := deprecatedApiVersion(deprecations, node)
 	require.NotNil(t, ruleResult)
-	require.Equal(t, "APIVersionDeprecated-v1/Foo", ruleResult.Rule.ID)
+	require.Equal(t, "APIVersionDeprecated/v1/Foo", ruleResult.Rule.ID)
 	require.Equal(t, uint(10), ruleResult.Rule.Severity)
 	require.NotEmpty(t, ruleResult.Violations)
-	require.Equal(t, "bar", ruleResult.Violations[0].Namespace)
-	require.Equal(t, "baz", ruleResult.Violations[0].Name)
+	require.Equal(t, "bar", ruleResult.Violations[0].Reference.Namespace)
+	require.Equal(t, "baz", ruleResult.Violations[0].Reference.Name)
 }
