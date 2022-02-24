@@ -35,7 +35,7 @@ func (g *Graph) Populate(ctx context.Context, client kubernetes.Interface, dynam
 	if err != nil {
 		return fmt.Errorf("could not discover API resources: %w", err)
 	}
-  gvrs = filterGVRs(gvrs)
+	gvrs = filterGVRs(gvrs)
 	logger.Info("fetching all resources")
 	objects, err := fetch(ctx, dynamicClient, gvrs, namespace)
 	if err != nil {
@@ -65,14 +65,24 @@ func (g *Graph) Populate(ctx context.Context, client kubernetes.Interface, dynam
 
 // AddUnstructuredNode adds a node from a unstructured resource
 func (g *Graph) AddUnstructuredNode(u unstructured.Unstructured) error {
-  node, err := NewNode(u)
+	node, err := NewNode(u)
 	if err != nil {
 		return err
 	}
 
+	if node == nil {
+		return nil
+	}
+
 	// Skip helm release secrets
-  // TODO: Find a better place to check this
+	// TODO: Find a better place to check this
 	if node.Reference.ApiVersion == "v1" && node.Reference.Kind == "Secret" && node.Object.(*corev1.Secret).Type == "helm.sh/release.v1" {
+		return nil
+	}
+
+	// If the node id already exists, AddNode() will panic
+	_, ok := g.idMap[node.Reference.ID()]
+	if ok {
 		return nil
 	}
 
@@ -92,7 +102,7 @@ func (g *Graph) AddEdgesForNode(node *Node) error {
 		}
 		refId, err := uuid.Parse(string(ownerRef.UID))
 		if err != nil {
-      fmt.Println("owner ref", ownerRef.String())
+			fmt.Println("owner ref", ownerRef.String())
 			return err
 		}
 		refNode := g.dg.Node(int64(refId.ID()))
@@ -111,7 +121,7 @@ func (g *Graph) AddEdgesForNode(node *Node) error {
 		id, ok := g.idMap[relationship.Reference.ID()]
 		if !ok {
 			return nil
-      //return fmt.Errorf("missing reference: %s", relationship.Reference.ID())
+			//return fmt.Errorf("missing reference: %s", relationship.Reference.ID())
 		}
 		refNode := g.dg.Node(id)
 

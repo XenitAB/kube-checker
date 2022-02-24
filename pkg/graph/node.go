@@ -1,7 +1,6 @@
 package graph
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -44,7 +43,8 @@ func NewNode(u unstructured.Unstructured) (*Node, error) {
 		return nil, err
 	}
 	if string(u.GetUID()) == "" {
-		return nil, fmt.Errorf("resource uuid is empty: %s", reference.ID())
+		// return nil, fmt.Errorf("resource uuid is empty: %s", reference.ID())
+		return nil, nil
 	}
 	id, err := uuid.Parse(string(u.GetUID()))
 	if err != nil {
