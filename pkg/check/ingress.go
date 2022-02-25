@@ -35,27 +35,34 @@ func ingressDNS(ctx context.Context, node *graph.Node, graph *graph.Graph) (bool
 	lbIpExists := len(ingress.Status.LoadBalancer.Ingress) > 0 && ingress.Status.LoadBalancer.Ingress[0].IP != ""
 
 	if hostExists && lbIpExists {
+		if len(ingress.Status.LoadBalancer.Ingress) > 1 {
+			return true, []string{"lookups of multiple ip addresses not implemented"}, nil
+		}
+
 		ip := ingress.Status.LoadBalancer.Ingress[0].IP
-		host := ingress.Spec.Rules[0].Host
-		results, err := net.LookupIP(host)
-		if err != nil {
-			return true, []string{fmt.Sprintf("unable to lookup ip for %q: %v", host, err)}, nil
-		}
 
-		var ipv4Result []net.IP
-		for _, result := range results {
-			if result.To4() == nil {
-				continue
+		for _, ingressRule := range ingress.Spec.Rules {
+			host := ingressRule.Host
+			results, err := net.LookupIP(host)
+			if err != nil {
+				return true, []string{fmt.Sprintf("unable to lookup ip for %q: %v", host, err)}, nil
 			}
-			ipv4Result = append(ipv4Result, result)
-		}
 
-		if len(ipv4Result) != 1 {
-			return true, []string{fmt.Sprintf("lookup of %q returned more than one ipv4 ip: %v", host, ipv4Result)}, nil
-		}
+			var ipv4Result []net.IP
+			for _, result := range results {
+				if result.To4() == nil {
+					continue
+				}
+				ipv4Result = append(ipv4Result, result)
+			}
 
-		if ipv4Result[0].String() != ip {
-			return true, []string{fmt.Sprintf("lookup of %q expected ip %q but received: %s", host, ip, ipv4Result[0].String())}, nil
+			if len(ipv4Result) != 1 {
+				return true, []string{fmt.Sprintf("lookup of %q returned more than one ipv4 ip: %v", host, ipv4Result)}, nil
+			}
+
+			if ipv4Result[0].String() != ip {
+				return true, []string{fmt.Sprintf("lookup of %q expected ip %q but received: %s", host, ip, ipv4Result[0].String())}, nil
+			}
 		}
 	}
 
