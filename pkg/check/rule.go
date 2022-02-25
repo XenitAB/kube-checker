@@ -187,6 +187,13 @@ func getRules() map[string][]Rule {
 				Link:        "",
 				Evaluate:    ingressNoTLS,
 			},
+			{
+				ID:          "IngressDNS",
+				Severity:    5,
+				Description: "Lookups for the ingress host will return the IP that is set in the status of th ingress.",
+				Link:        "",
+				Evaluate:    ingressDNS,
+			},
 		},
 	}
 }
