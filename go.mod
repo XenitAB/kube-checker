@@ -3,6 +3,7 @@ module github.com/xenitab/kube-checker
 go 1.17
 
 require (
+	github.com/alexflint/go-arg v1.4.3
 	github.com/go-logr/logr v1.2.2
 	github.com/go-logr/zapr v1.2.2
 	github.com/google/uuid v1.3.0
@@ -19,6 +20,7 @@ require (
 )
 
 require (
+	github.com/alexflint/go-scalar v1.1.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fluxcd/pkg/apis/acl v0.0.1 // indirect
 	github.com/fluxcd/pkg/apis/kustomize v0.3.0 // indirect

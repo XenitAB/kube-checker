@@ -26,7 +26,7 @@ func nodePremiumStorage(ctx context.Context, node *graph.Node, graph *graph.Grap
 	clusterNode := node.Object.(*corev1.Node)
 	storageTier, ok := clusterNode.Labels[storageTierKey]
 	if !ok {
-		return false, nil, fmt.Errorf("label %s missing from node", storageTierKey)
+		return true, []string{fmt.Sprintf("label %s missing from node", storageTierKey)}, nil
 	}
 	if storageTier != "Premium_LRS" {
 		return true, nil, nil
@@ -38,7 +38,7 @@ func nodeBurstableTypes(ctx context.Context, node *graph.Node, graph *graph.Grap
 	clusterNode := node.Object.(*corev1.Node)
 	instanceType, ok := clusterNode.Labels[instanceTypeKey]
 	if !ok {
-		return false, nil, fmt.Errorf("label %s missing from node", instanceTypeKey)
+		return true, []string{fmt.Sprintf("label %s missing from node", instanceTypeKey)}, nil
 	}
 	if strings.HasPrefix(instanceType, "Standard_B") {
 		return true, nil, nil

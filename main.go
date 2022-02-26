@@ -3,11 +3,12 @@ package main
 import (
 	"context"
 	"embed"
-	"flag"
 	"fmt"
 	"os"
+	"path"
 	"strconv"
 
+	"github.com/alexflint/go-arg"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"github.com/olekukonko/tablewriter"
@@ -26,41 +27,41 @@ import (
 var fs embed.FS
 
 func main() {
-	// Get flag inputs
-	namespace := flag.String("namespace", "", "The namespace to scope to.")
-	kubeconfigPath := flag.String("kubeconfig", "", "Path to the kubeconfig file.")
-	flag.Parse()
+	// Load config
+	cfg, err := loadConfig(os.Args[1:])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "config generation returned an error: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Discard any logs from the Kubernetes client
 	klog.SetLogger(logr.Discard())
 	// Setup logger
 	zapLog, err := zap.NewDevelopment()
 	if err != nil {
-		panic(fmt.Sprintf("who watches the watchmen (%v)?", err))
+		fmt.Fprintf(os.Stderr, "logger creation returned an error: %v\n", err)
+		os.Exit(1)
 	}
 	logger := zapr.NewLogger(zapLog)
+	ctx := logr.NewContext(context.Background(), logger)
 
 	// Run application
-	if err := run(logger, *namespace, *kubeconfigPath); err != nil {
+	if err := run(ctx, cfg); err != nil {
 		logger.Error(err, "error running application")
 		os.Exit(1)
 	}
 }
 
-func run(logger logr.Logger, namespace, kubeconfigPath string) error {
-	// Setup context
-	ctx := context.Background()
-	ctx = logr.NewContext(ctx, logger)
-
+func run(ctx context.Context, cfg config) error {
 	// Get cluster clients
-	client, dynamicClient, err := getKubernetesClients(kubeconfigPath)
+	client, dynamicClient, err := getKubernetesClients(cfg.KubeConfigPath)
 	if err != nil {
 		return err
 	}
 
 	// Check the cluster resources
 	g := graph.NewGraph()
-	err = g.Populate(ctx, client, dynamicClient, namespace)
+	err = g.Populate(ctx, client, dynamicClient, cfg.Namespace)
 	if err != nil {
 		return err
 	}
@@ -68,6 +69,7 @@ func run(logger logr.Logger, namespace, kubeconfigPath string) error {
 	if err != nil {
 		return err
 	}
+
 	ruleResults, err := checker.Evaluate(g)
 	if err != nil {
 		return err
@@ -77,7 +79,7 @@ func run(logger logr.Logger, namespace, kubeconfigPath string) error {
 	if err != nil {
 		return err
 	}
-	os.WriteFile("/home/philip/graph.dot", b, 0777)
+	os.WriteFile(cfg.GraphFile, b, 0644)
 
 	// Print result
 	checkTable := tablewriter.NewWriter(os.Stdout)
@@ -133,5 +135,39 @@ func getKubernetesConfig(path string) (*rest.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	return cfg, nil
+}
+
+type config struct {
+	Namespace      string `arg:"--namespace,env:NAMESPACE" help:"the namespace to scope to"`
+	KubeConfigPath string `arg:"--kubeconfig,env:KUBE_CONFIG" help:"path to the kubeconfig file"`
+	GraphFile      string `arg:"--graph-file,env:GRAPH_FILE" help:"path to the stored graph file"`
+}
+
+func loadConfig(args []string) (config, error) {
+	argCfg := arg.Config{
+		Program:   "kube-checker",
+		IgnoreEnv: false,
+	}
+
+	var cfg config
+	parser, err := arg.NewParser(argCfg, &cfg)
+	if err != nil {
+		return config{}, err
+	}
+
+	err = parser.Parse(args)
+	if err != nil {
+		return config{}, err
+	}
+
+	if cfg.GraphFile == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return config{}, err
+		}
+		cfg.GraphFile = path.Join(homeDir, "graph.dot")
+	}
+
 	return cfg, nil
 }
