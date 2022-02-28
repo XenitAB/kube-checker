@@ -4,8 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"sync"
-	"time"
+	"strings"
 
 	networkingv1 "k8s.io/api/networking/v1"
 
@@ -32,12 +31,6 @@ func ingressNoTLS(ctx context.Context, node *graph.Node, graph *graph.Graph) (bo
 }
 
 func ingressDNS() func(ctx context.Context, node *graph.Node, graph *graph.Graph) (bool, []string, error) {
-	type lookupResult struct {
-		results []net.IP
-		err     error
-	}
-	lookupCache := make(map[string]lookupResult)
-	lookupMutex := &sync.Mutex{}
 	conf, err := dns.ClientConfigFromFile("/etc/resolv.conf")
 	if err != nil {
 		conf = &dns.ClientConfig{
@@ -48,33 +41,30 @@ func ingressDNS() func(ctx context.Context, node *graph.Node, graph *graph.Graph
 		}
 	}
 	dnsClient := &dns.Client{
-		Net:     "tcp",
-		Timeout: 1 * time.Second,
+		Net: "tcp",
 	}
-	ns := net.JoinHostPort(conf.Servers[0], conf.Port)
+	dnsConn, err := dnsClient.Dial(net.JoinHostPort(conf.Servers[0], conf.Port))
+	if err != nil {
+		return func(ctx context.Context, node *graph.Node, graph *graph.Graph) (bool, []string, error) {
+			return true, []string{fmt.Sprintf("unable to connect to dns: %v", err)}, nil
+		}
+	}
 
 	lookupFn := func(host string) ([]net.IP, error) {
-		lookupMutex.Lock()
-		defer lookupMutex.Unlock()
-
-		v, ok := lookupCache[host]
-		if ok {
-			return v.results, v.err
-		}
-
 		msg := &dns.Msg{}
-		msg.SetQuestion(fmt.Sprintf("%s.", host), dns.TypeA)
+		queryHost := host
+		if !strings.HasSuffix(host, ".") {
+			queryHost = fmt.Sprintf("%s.", host)
+		}
+		msg.SetQuestion(queryHost, dns.TypeA)
 
-		result, _, err := dnsClient.Exchange(msg, ns)
+		result, _, err := dnsClient.ExchangeWithConn(msg, dnsConn)
 		if err != nil {
-			lookupCache[host] = lookupResult{results: nil, err: err}
 			return nil, err
 		}
 
 		if result.Rcode != dns.RcodeSuccess {
-			err := fmt.Errorf("response code not success for lookup of %s: %d", host, result.Rcode)
-			lookupCache[host] = lookupResult{results: nil, err: err}
-			return nil, err
+			return nil, fmt.Errorf("response code not success for lookup of %s: %d", host, result.Rcode)
 		}
 
 		results := []net.IP{}
@@ -89,12 +79,8 @@ func ingressDNS() func(ctx context.Context, node *graph.Node, graph *graph.Graph
 		}
 
 		if len(results) == 0 {
-			err := fmt.Errorf("received no results from lookup of %s", host)
-			lookupCache[host] = lookupResult{results: nil, err: err}
-			return nil, err
+			return nil, fmt.Errorf("received no results from lookup of %s", host)
 		}
-
-		lookupCache[host] = lookupResult{results: results, err: nil}
 
 		return results, nil
 	}
