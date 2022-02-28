@@ -194,6 +194,13 @@ func getRules() map[string][]Rule {
 				Link:        "",
 				Evaluate:    ingressDNS(),
 			},
+			{
+				ID:          "IngressExternalDNSTxtOwner",
+				Severity:    5,
+				Description: "Lookups for the ingress host that the txt owner record matches external-dns.",
+				Link:        "",
+				Evaluate:    ingressExternalDnsTxtOwner(),
+			},
 		},
 	}
 }
