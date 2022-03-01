@@ -188,5 +188,14 @@ func getRules() map[string][]Rule {
 				Evaluate:    ingressNoTLS,
 			},
 		},
+		"certificate": {
+			{
+				ID:          "Expiry",
+				Severity:    5,
+				Description: "Certificate has expired or is about to.",
+				Link:        "",
+				Evaluate:    certificateExpiry,
+			},
+		},
 	}
 }
