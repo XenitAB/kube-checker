@@ -1,5 +1,5 @@
 # Kubernetes
-## v1.16
+## v1.19
 - component: kubernetes
   apiVersion: extensions/v1beta1
   kind: PodSecurityPolicy
